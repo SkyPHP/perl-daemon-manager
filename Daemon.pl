@@ -1,0 +1,364 @@
+#!/usr/bin/perl -l
+
+require 'funcs.pl';
+
+use Data::Dumper;
+use POSIX ':sys_wait_h';
+
+$| = 1;
+
+package Daemon;
+
+use strict;
+
+sub new {
+   my ($class, $params) = @_;
+
+   my $self = {};
+ 
+   $self->{'jobs'} = $params->{'jobs'} || [];
+   $self->{'children'} = [];
+   
+   $self->{'started'} = 0;
+   $self->{'stopped'} = 0;
+
+   $self->{'is_child'} = 0;
+
+   $self->{'kill_attempts'} = $params->{'kill_attempts'} || 5;
+
+   $self->{'revive_children'} = defined $params->{'revive_children'}?$params->{'revive_children'}:1;
+
+   $self->{'repeat_children'} = defined $params->{'repeat_children'}?$params->{'repeat_children'}:1;
+
+   $self->{'miss_count'} = 0;
+
+   $self->{'sleep_interval'} = $params->{'sleep_interval'} || 60;
+
+   $self->{'stop_force_time'} = $params->{'stop_force_time'} || 10;
+
+   $self = bless $self, $class;
+
+   $self->init_sig_handlers();
+
+   $self;
+}
+
+sub init_sig_handlers {
+   my $self = shift();
+
+   my $HUP = sub {
+      $self->log('SIGHUP received');
+
+      return if($self->{'is_child'});
+
+      if($self->{'started'} && !$self->{'stopped'}){
+         $self->log('restarting');
+       
+         my $callback = sub {
+            $self->log('all child processes stopped, starting again...');
+            $self->log('failed to restart') unless $self->start() || $self->is_started;
+         };
+
+         unless($self->stop(0, $callback) || $self->stopped){
+            $self->log('failed to stop, will not restart');
+         }
+      }else{
+         $self->log('nothing to do');
+      }
+   
+   };
+
+   my $CHLD = sub {
+      $self->log('SIGCHLD received');
+
+      return if $self->{'is_child'};
+
+      my $child_pid = waitpid(-1, ::WNOHANG);
+      my $exit_status = $?;
+
+      if($self->{'force_stop'}){
+         return 0;
+      }
+
+      if($child_pid == -1){
+         $self->log('an error occurred handling SIGCHLD');
+         return 0;
+      }
+
+      unless($child_pid){
+         $self->log('no child is available');
+         return 0;
+      }
+
+      $self->log('child with pid ' . $child_pid . ' exitted with status ' . $exit_status);
+
+      my $old_child = $self->remove_child($child_pid);
+
+      if($self->{'revive_children'} && !$self->{'SIGTERM_received'}){
+         $self->log('attempting to revive child...');
+
+         if($exit_status == 0){
+            $self->log('child exitted with successful exit status, will not revive');
+            return 0;
+         }
+
+         my $job = $self->get_job($old_child->{'name'} || 'job');
+
+         unless($job){
+            $self->log('could not determine job, can not revive child');
+            return 0;
+         }
+
+         $self->make_fork($job);
+      }else{
+         $self->log('revive_children unset, will not attempt to revive child');
+      }
+
+      if($self->{'SIGTERM_received'} && scalar @{$self->{'children'}} == 0){
+         $self->log('all processes exitted naturally, exitting...');
+         exit 0;
+      }
+
+      1;
+   };
+
+   my $TERM = sub {
+       $self->log('SIGTERM received');
+
+       if($self->{'is_child'}){
+          if($self->{'SIGTERM_received'}){
+             $self->log('second SIGTERM received, forcing exit...');
+             exit 0;
+          }
+          $self->{'SIGTERM_received'} = 1;
+          $self->log('waiting for child job to finish before exitting...');
+          return 0;
+       }
+
+       $self->{'SIGTERM_received'} = 1;
+
+       my $callback = sub {
+          $self->log('not all processes exitted naturally, exitting...');
+          exit 0;
+       };
+
+       $self->stop(0, $callback);
+   };
+
+   $SIG{'HUP'} = $HUP;
+   $SIG{'CHLD'} = $CHLD;
+   $SIG{'TERM'} = $TERM;
+}
+
+
+
+sub log {
+   my $self = shift;
+   my $output;
+   print $$ . ': ' . $output while $output = shift;
+}
+
+sub start {
+   my ($self, $force) = @_;
+
+   if($self->{'started'}){
+      unless($force){
+         $self->log('already started, will not start again without $force');
+         return 0;
+      }else{
+         $self->log('forcing start');
+      } 
+   }
+
+   $self->{'stopped'} = 0;
+   $self->{'started'} = 1;
+
+   $self->log('starting...');
+
+   foreach(@{$self->{'jobs'}}){
+      my $job = $_;
+
+      $self->make_fork($job) foreach 0 .. (($job->{'fork_count'} - 1)|| 0);
+   }
+
+   1;
+}
+
+sub stop {
+   my ($self, $force, $callback) = @_;
+
+   return 0 if $self->{'is_child'};
+
+   unless($self->{'started'}){
+      $self->log('daemon not yet started, will not stop');
+      return 0;
+   }
+
+   if($force){
+      $self->log('forcing stop');
+   }
+
+   if($self->{'stopped'} && !$force){
+      $self->log('daemon has already been stopped, will not stop without $force');
+      return 0;
+   }
+
+   $self->log('stopping...');
+
+   $self->{'stopped'} = 1;
+
+   foreach(@{$self->{'children'}}){
+      my $child = $_;
+
+      my $kill_attempts = 0;
+ 
+      while(!kill(($force?'KILL':'TERM'), $child->{'pid'})){
+         $kill_attempts++;
+
+         if($kill_attempts > $self->{'kill_attempts'}){
+             $self->log('failed to kill ' . $child->{'pid'} . ' after ' . $kill_attempts . ' attempts, will not try again.  Child process may still be running');
+         }
+      }
+   }
+  
+   return 1 if $force;
+
+   $self->log('waiting ' . $self->{'stop_force_time'} . ' seconds for child processes to finish...'); 
+ 
+   alarm($self->{'stop_force_time'});   
+
+   $SIG{'ALRM'} = sub {
+      $self->{'force_stop'} = 1;
+
+      if(scalar @{$self->{'children'}}){
+         $self->log('not all child processes have exitted, forcing stop');
+         $self->stop(1);
+      }
+
+      $self->{'started'} = 0;
+
+      $SIG{'ALRM'} = undef;
+
+      $callback->() if $callback;
+
+      $self->{'force_stop'} = 0;
+   };
+
+   1;
+}
+
+sub count_children {
+   my $self = shift;
+
+   my $count = 0;
+
+   $count++ foreach $self->{'children'};
+
+   $count;
+}
+
+sub remove_child {
+   my ($self, $pid) = @_;
+
+   my @children = ();
+
+   my $ret = undef;
+
+   ($_->{'pid'} == $pid && ($ret = $_)) || push(@children, $_) foreach @{$self->{'children'}};
+
+   $self->{'children'} = \@children;
+
+   $ret;
+}
+
+sub get_job {
+   my ($self, $name) = @_;
+
+   foreach(@{$self->{'jobs'}}){
+      return $_ if ($_->{'name'} || 'job') eq $name;
+   }
+
+   undef;
+}
+
+sub make_fork {
+   my ($self, $job) = @_;
+
+   my $pid = fork;
+
+   if($pid == -1){
+      $self->log('there was an error forking');
+      return 0;
+   }
+
+   if($pid){
+      #parent
+      $self->log('forked ' . ($job->{'name'} || 'job') . ' to process ' . $pid);
+      push $self->{'children'}, {'pid' => $pid, 'name' => $job->{'name'} || 'job'};
+   }else{
+      #child
+      $self->{'is_child'} = 1;
+      $self->child_proc($job);
+   }
+
+   1;
+}
+
+sub child_proc {
+   my ($self, $job, $recursion) = @_;
+
+   unless($self->{'is_child'}){
+      $self->log('not a child, will not run ' . ($job->{'name'} || 'job'));
+      return 0;
+   }
+
+   my $exit_status = undef;
+
+   if($self->{'repeat_children'}){
+      while(!$self->{'SIGTERM_received'}){
+         if($exit_status){
+            my $sleep_time = $self->{'sleep_interval'} * (2 ** ($self->{'miss_count'} - 1));
+            $self->log(($job->{'name'} || 'job') . ' exited with error status, sleeping ' . $sleep_time . ' seconds...');
+            sleep $sleep_time;
+         }
+
+         $exit_status = $self->child_job($job);
+      }
+
+      $self->log('received SIGTERM');
+      $exit_status = 0;
+   }else{
+      $exit_status = $self->child_job($job);
+   }
+
+   $self->log('exitting...');
+
+   exit $exit_status;
+}
+
+sub child_job {
+   my ($self, $job) = @_;
+
+   unless($self->{'is_child'}){
+      $self->log('not a child, will not run ' . ($job->{'name'} || 'job'));
+      return 0;
+   }
+
+   my $cmd_output = undef;
+
+   my $exit_status = ::cmd($job->{'cmd'}, $cmd_output);
+
+   $self->log(($job->{'name'} || 'job') . " completed with output:\n$cmd_output");
+
+   $self->log(($job->{'name'} || 'job') . ' complete with exit status ' . $exit_status);
+
+   if($exit_status){
+      $self->{'miss_count'}++;
+   }else{
+      $self->{'miss_count'} = 0;
+   }
+
+   return $exit_status;
+}
+
+1;
