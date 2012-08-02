@@ -1,16 +1,61 @@
 #!/usr/bin/perl -l
 
-require 'funcs.pl';
+require 'funcs.pl'; #cmd subroutine
 
-use Data::Dumper;
+use Data::Dumper; #for debugging purposes
 use POSIX ':sys_wait_h';
 
-$| = 1;
+$| = 1; #flush output
 
+#Configurable daemon class to manage multiple multi-process jobs
+#
+#features include:
+#   ability to specify any command to run either once or repeatedly
+#   ability to specify how many processes a job will run at once
+#   ability to specify multiple jobs to be run at once
+#   ability to restart all jobs by sending SIGHUP to parent process
+#   ability to cleanly terminate all jobs by sending SIGTERM to parent process
+#   ability to specify an amount of seconds to wait during stop before forcing stop (unclean termination of remaining jobs)
+#   ability to specify an amount of seconds before a job is run again if the job returns an error exit status,
+#      the amount of time waited will double with each consecutive error status
+#
+#sample usage:
+#   $jobs = [
+#      {  #`cd work_dir; ./upload_script` will execute simultaneously in five child processes
+#         'name' => 'upload_big_files',
+#         'fork_count' => 5,
+#         'cmd' => 'cd work_dir; ./upload_script'
+#      },
+#      {  #`cd work_dir; ./delete_script` will execute simultaneously in two processes
+#         'name' => 'delete_big_files',
+#         'fork_count' => 2,
+#         'cmd' => 'cd work_dir; ./delete_script'
+#      }       
+#   ];
+#
+#   $params = {
+#      'jobs' => $jobs,
+#      'kill_attempts' => 3,   #when stopping the daemon, attempt to kill child processes this many times before giving up
+#      'revive_children' => 1, #if a child process exits with an error code, it will be restarted if this is set
+#      'repeat_children' => 1, #if this is set, the job cmd will be executed repeatedly within the child processes, if unset, the child will exit with the cmd exit status
+#      'sleep_interval' => 60, #if repeat_children is set and a job cmd exits with an error code, child will sleep for this long before re-executing the cmd
+#                              #for each consecutive error code returned, the amount of time slept will double ie: 60 -> 120 -> 240 ...
+#      'stop_force_time' => 10 #when stopping the daemon, will wait this long for child processes to terminate cleanly before forcing unclean termination
+#   };
+#
+#   $daemon = Daemon->new($params);
+#
+#   $daemon->start();
+#
+#   sleep 10 while true; #create an endless loop
 package Daemon;
 
-use strict;
+use strict; #force lexical scoping
 
+#constructor
+#params:
+#   $params - array reference - settings to use for the daemon
+#return blessed Daemon object (hash)
 sub new {
    my ($class, $params) = @_;
 
@@ -43,6 +88,8 @@ sub new {
    $self;
 }
 
+#initializes the signal handlers used by the daemon
+#return 1
 sub init_sig_handlers {
    my $self = shift();
 
@@ -150,14 +197,21 @@ sub init_sig_handlers {
    $SIG{'TERM'} = $TERM;
 }
 
-
-
+#adds an entry to the log (STDOUT) with pid prepended to the output line
+#params:
+#   $output - scalar - data to log
+#   ...
+#return 1
 sub log {
    my $self = shift;
    my $output;
    print $$ . ': ' . $output while $output = shift;
 }
 
+#starts the daemon processes if they have not been started before
+#params:
+#   $force - scalar (boolean) - true to force a start
+#return 1 on success 0 on failure
 sub start {
    my ($self, $force) = @_;
 
@@ -184,6 +238,11 @@ sub start {
    1;
 }
 
+#stops the daemon, waiting stop_force_time seconds before forcing stop
+#params:
+#   $force - scalar (boolean) - true to force stop
+#   $callback - subroutine reference - called after successful stop (via force or otherwise)
+#return 1 on success 0 on failure
 sub stop {
    my ($self, $force, $callback) = @_;
 
@@ -247,16 +306,10 @@ sub stop {
    1;
 }
 
-sub count_children {
-   my $self = shift;
-
-   my $count = 0;
-
-   $count++ foreach $self->{'children'};
-
-   $count;
-}
-
+#removes a child process from the daemon's watched processes
+#params:
+#   $pid - scalar - the pid of the child to remove
+#return hash reference, the removed child
 sub remove_child {
    my ($self, $pid) = @_;
 
@@ -271,6 +324,10 @@ sub remove_child {
    $ret;
 }
 
+#gets a job from the daemon's job list by name
+#params:
+#   $name - scalar - the name of the job to fetch
+#return hash reference, the job saught after, undef if no job with the given name exists
 sub get_job {
    my ($self, $name) = @_;
 
@@ -281,6 +338,10 @@ sub get_job {
    undef;
 }
 
+#forks the current process and starts a given job in the child process
+#params:
+#   $job - hash reference - the job to execute in the child process
+#return 1 from parent, child processes never return from this function
 sub make_fork {
    my ($self, $job) = @_;
 
@@ -304,6 +365,11 @@ sub make_fork {
    1;
 }
 
+
+#starts a child process's work cycle
+#params:
+#   $job - hash reference - the job to execute in this cycle
+#return 0 if innapropriately called from the parent, child processes never return (exit)
 sub child_proc {
    my ($self, $job, $recursion) = @_;
 
@@ -336,12 +402,16 @@ sub child_proc {
    exit $exit_status;
 }
 
+#executes the job cmd for the given job
+#params:
+#   $job - hash reference - the job to run
+#return scalar, the exit status of the job cmd, undef if inapropriately called form parent
 sub child_job {
    my ($self, $job) = @_;
 
    unless($self->{'is_child'}){
       $self->log('not a child, will not run ' . ($job->{'name'} || 'job'));
-      return 0;
+      return undef;
    }
 
    my $cmd_output = undef;
