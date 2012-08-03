@@ -8,48 +8,7 @@ use POSIX ':sys_wait_h';
 $| = 1; #flush output
 
 #Configurable daemon class to manage multiple multi-process jobs
-#
-#features include:
-#   ability to specify any command to run either once or repeatedly
-#   ability to specify how many processes a job will run at once
-#   ability to specify multiple jobs to be run at once
-#   ability to restart all jobs by sending SIGHUP to parent process
-#   ability to cleanly terminate all jobs by sending SIGTERM to parent process
-#   ability to specify an amount of seconds to wait during stop before forcing stop (unclean termination of remaining jobs)
-#   ability to specify an amount of seconds before a job is run again if the job returns an error exit status,
-#      the amount of time waited will double with each consecutive error status
-#
-#sample usage:
-#   use Daemon;
-#
-#   $jobs = [
-#      {  #`cd work_dir; ./upload_script` will execute simultaneously in five child processes
-#         'name' => 'upload_big_files',
-#         'fork_count' => 5,
-#         'cmd' => 'cd work_dir; ./upload_script'
-#      },
-#      {  #`cd work_dir; ./delete_script` will execute simultaneously in two processes
-#         'name' => 'delete_big_files',
-#         'fork_count' => 2,
-#         'cmd' => 'cd work_dir; ./delete_script'
-#      }       
-#   ];
-#
-#   $params = {
-#      'jobs' => $jobs,
-#      'kill_attempts' => 3,   #when stopping the daemon, attempt to kill child processes this many times before giving up
-#      'revive_children' => 1, #if a child process exits with an error code, it will be restarted if this is set
-#      'repeat_children' => 1, #if this is set, the job cmd will be executed repeatedly within the child processes, if unset, the child will exit with the cmd exit status
-#      'sleep_interval' => 60, #if repeat_children is set and a job cmd exits with an error code, child will sleep for this long before re-executing the cmd
-#                              #for each consecutive error code returned, the amount of time slept will double ie: 60 -> 120 -> 240 ...
-#      'stop_force_time' => 10 #when stopping the daemon, will wait this long for child processes to terminate cleanly before forcing unclean termination
-#   };
-#
-#   $daemon = Daemon->new($params);
-#
-#   $daemon->start();
-#
-#   sleep 10 while true; #create an endless loop
+#see README.md for detailed description of features and sample usage.
 package Daemon;
 
 use strict; #force lexical scoping
@@ -82,6 +41,8 @@ sub new {
    $self->{'sleep_interval'} = $params->{'sleep_interval'} || 60;
 
    $self->{'stop_force_time'} = $params->{'stop_force_time'} || 10;
+
+   $self->{'force_stop'} = 0;
 
    $self = bless $self, $class;
 
@@ -259,6 +220,7 @@ sub stop {
 
    if($force){
       $self->log('forcing stop');
+      $self->{'force_stop'} = 1;
    }
 
    if($self->{'stopped'} && !$force){
@@ -282,12 +244,15 @@ sub stop {
 
          if($kill_attempts > $self->{'kill_attempts'}){
              $self->log('failed to kill ' . $child->{'pid'} . ' after ' . $kill_attempts . ' attempts, will not try again.  Child process may still be running');
+             last;
          }
       }
    }
   
    if($force){
       $callback->() if $callback;
+      $self->{'force_stop'} = 0;
+      $self->{'started'} = 0;
       return 1;
    } 
 
@@ -296,8 +261,6 @@ sub stop {
    alarm $self->{'stop_force_time'};   
 
    $SIG{'ALRM'} = sub {
-      $self->{'force_stop'} = 1;
-
       if(scalar @{$self->{'children'}}){
          $self->log('not all child processes have exitted, forcing stop');
          $self->stop(1);
@@ -308,8 +271,6 @@ sub stop {
       $SIG{'ALRM'} = undef;
 
       $callback->() if $callback;
-
-      $self->{'force_stop'} = 0;
    };
 
    1;
