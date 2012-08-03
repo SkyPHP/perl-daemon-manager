@@ -54,7 +54,7 @@ use strict; #force lexical scoping
 
 #constructor
 #params:
-#   $params - array reference - settings to use for the daemon
+#   $params - hash reference - settings to use for the daemon
 #return blessed Daemon object (hash)
 sub new {
    my ($class, $params) = @_;
