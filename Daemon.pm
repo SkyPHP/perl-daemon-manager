@@ -42,6 +42,8 @@ sub new {
 
    $self->{'stop_force_time'} = $params->{'stop_force_time'} || 10;
 
+   $self->{'exit_callback'} = $params->{'exit_callback'} || undef;
+
    $self->{'force_stop'} = 0;
 
    $self = bless $self, $class;
@@ -124,6 +126,7 @@ sub init_sig_handlers {
 
       if($self->{'SIGTERM_received'} && scalar @{$self->{'children'}} == 0){
          $self->log('all processes exitted naturally, exitting...');
+         $self->{'exit_callback'}->() if $self->{'exit_callback'};
          exit 0;
       }
 
@@ -151,6 +154,7 @@ sub init_sig_handlers {
 
        my $callback = sub {
           $self->log('not all processes exitted naturally, exitting...');
+          $self->{'exit_callback'}->() if $self->{'exit_callback'};
           exit 0;
        };
 
@@ -244,7 +248,7 @@ sub stop {
  
       $self->log('force killing ' . ($child->{'name'} || 'job') . ' pid ' . $child->{'pid'}) if $force;
 
-      while(!kill(($force?'KILL':'TERM'), $child->{'pid'})){
+      until(kill(($force?'KILL':'TERM'), $child->{'pid'})){
          $kill_attempts++;
 
          if($kill_attempts > $self->{'kill_attempts'}){
@@ -334,6 +338,7 @@ sub make_fork {
    }else{
       #child
       $self->{'is_child'} = 1;
+      $self->{'children'} = undef;
       $self->child_proc($job);
    }
 

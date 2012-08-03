@@ -12,7 +12,10 @@ $params = {
       {'name' => 'ls' , 'cmd' => 'sleep 15', 'fork_count' => 3},
       {'name' => 'perl', 'cmd' => 'sleep 13', 'fork_count' => 2},
       {'name' => 'pwd', 'cmd' => 'sleep 12', 'fork_count' => 1}
-   ]
+   ],
+   'exit_callback' => sub {
+      print 'this is an exit callback';
+   }
 };
 
 $daemon = Daemon->new($params);

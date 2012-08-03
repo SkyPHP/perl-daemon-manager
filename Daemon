@@ -1,0 +1,126 @@
+#!/usr/bin/perl -l
+
+use Daemon;
+
+$command = shift;
+
+#in config.pl define:
+#   $params - hash reference - the $params to send to new Daemon objects
+#   $pid_file_location - string - location to read and write pid file
+#   $log_file_location - string - location to write the log to
+#   $error_file_location - string - location to write the error log to
+#all four are required
+require 'config.pl' if -e 'config.pl';
+
+die 'bad config' unless $params && $pid_file_location && $log_file_location && $error_file_location;
+
+sub get_pid {
+   return undef unless -e 'Daemon.pid';
+
+   open($pid_file, '<', $pid_file_location) || die 'failed to read pid file';
+
+   $pid = <$pid_file>;
+
+   $pid =~ s/\s//;
+
+   close $pid_file;
+
+   $pid;
+}
+
+sub init_logging {
+   close STDOUT;
+   close STDERR;
+
+   open STDOUT, '>>', $log_file_location;
+   open STDERR, '>>', $error_file_location;
+}
+
+if($command eq 'start'){
+   if(!$params){
+      print 'configure the daemon in config.pl';
+      exit 1;
+   }
+
+   $pid = get_pid();
+
+   if($pid){
+      if(kill 'CHLD', $pid){
+         die 'a daemon is already running, stop it first';         
+      }else{
+         print "a pid file exists with pid $pid but the daemon is not running, starting...";
+      }
+   }
+
+   $pid = undef;
+
+   $pid = fork;
+
+   if($pid == -1){
+      print 'failed to fork';
+      exit 1;
+   }
+
+   if($pid){
+      #parent
+      open($pid_file, '>', $pid_file_location) || die 'failed to write pid file, Daemon pid is ' . $pid;
+ 
+      print $pid_file $pid;
+
+      close $pid_file;
+
+      print "Daemon process with pid $pid started...";
+   }else{
+      #child
+      init_logging();
+
+      $params->{'exit_callback'} = sub {
+         close STDOUT;
+         close STDERR; 
+         unlink 'Daemon.pid';
+      };
+
+      $daemon = Daemon->new($params);
+
+      $daemon->start();
+
+      #main loop
+      sleep 60 while 1;
+   }
+}elsif($command eq 'stop'){
+   $pid = get_pid();
+
+   die 'no pid file, can not stop' unless $pid;
+
+   die 'failed to send SIGTERM to Daemon' unless kill 'TERM', $pid;
+
+   print 'sent SIGTERM to Daemon';   
+}elsif($command eq 'status'){
+   if(-e 'Daemon.pid'){
+      $pid = get_pid();
+
+      if(kill 'CHLD', $pid){
+         print 'Daemon is running with pid ' . $pid;
+      }else{
+         print "pid file exists with pid $pid but no Daemon is running...";
+      }
+
+   }else{
+      print 'No Daemon is running';
+   }
+}elsif($command eq 'restart'){
+   $pid = get_pid();
+
+   if($pid){
+      if(kill 'HUP', $pid){
+         print 'Restart request sent to Daemon';
+      }else{
+         die 'failed to send Daemon SIGHUP';
+      }
+   }else{
+      die 'no pid file exists';
+   }
+}else{
+   die 'unrecognized command';
+}
+

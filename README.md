@@ -1,7 +1,7 @@
 Daemon
 ======
 
-Daemon is a general-purpose Perl daemon class.  Daemon manages several forked processes which execute commands specified by the Daemon config.  Daemon can be configured either to run jobs once or repeatedly, and to revive dead child processes or not.  Daemon can easily be interfaced with using signals.
+Daemon is a general-purpose Perl daemon class.  Daemon manages several forked processes which execute commands specified by the Daemon config.  Daemon can be configured either to run jobs once or repeatedly, and to revive dead child processes or not.  Daemon can easily be interfaced with using signals.  A configurable convinience script `Daemon` is included to wrap usage of the Daemon class and provide monitoring of the Daemon process.
 
 Interface
 =========
@@ -18,6 +18,7 @@ The Daemon constuctor accepts a hash reference with the following configurations
 *  `repeat_children` - If this is set child processes will run the command `cmd` of their job in an endless loop.  Otherwise, a child will execute `cmd` only once and will exit with the same exit code as the job command.
 *  `sleep_interval` - If a child exits with an error status and `revive_children` is set, the script will `sleep` this amount of time before spawning another child.  With each consecutive error child process, the `sleep` time will be doubled.  60 will become 120 will become 240 and so on.
 *  `stop_force_time` - When a stop is requested via SIGTERM, the script will allow this many seconds for child processes to exit cleanly before they are force stopped.  An `alarm` is set, so sending a signal other than SIGALRM will not disrupt this wait time (unlike with `sleep`).
+* `exit_callback` - A subroutine reference to be called right before the parent process exits.  Useful for closing filehandles or other cleanup code.
 
 Daemon Attributes
 =================
@@ -33,6 +34,26 @@ Daemon Subroutines
 ==================
 
 See `Daemon.pm` for documentation of the Daemon subroutines.
+
+Daemon Convinience Script
+=========================
+
+A command line script, `Daemon`, is included for convinience which starts, stops, restarts or monitors a Daemon process.  The script maintains a pid file and logs for the Daemon.  Sample usages for all of the script's functions are shown bellow.
+
+````
+./Daemon start
+./Daemon stop #send twice to force immediate (unclean) Daemon termination
+./Daemon restart #this is different from a start followed by a stop, sends Daemon SIGHUP
+./Daemon status
+````
+
+The script expects a file `config.pl` which sets certain variables for the script.  The variables needed in `config.pl` are:
+*  `$params` - The hash reference to send to the constructor of the Daemon object.
+*  `$pid_file_location` - Where to write the pid file to.
+*  `$log_file_location` - Where to redirect STDOUT for the Daemon process.
+*  `$error_file_location` - Where to redirect STDERR for the Daemon process.
+
+All of these variables must be set in `config.pl` or the script will exit without doing anything.
 
 Sample Usage
 ============
