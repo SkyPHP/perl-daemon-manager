@@ -181,6 +181,10 @@ sub init_sig_handlers {
           return 0;
        }
 
+       my $force = 0;
+
+       $force = 1 if $self->{'SIGTERM_received'};
+
        $self->{'SIGTERM_received'} = 1;
 
        my $callback = sub {
@@ -188,7 +192,7 @@ sub init_sig_handlers {
           exit 0;
        };
 
-       $self->stop(0, $callback);
+       $self->stop($force, $callback);
    };
 
    $SIG{'HUP'} = $HUP;
@@ -270,6 +274,8 @@ sub stop {
 
       my $kill_attempts = 0;
  
+      $self->log('force killing ' . ($child->{'name'} || 'job') . ' pid ' . $child->{'pid'}) if $force;
+
       while(!kill(($force?'KILL':'TERM'), $child->{'pid'})){
          $kill_attempts++;
 
@@ -279,7 +285,10 @@ sub stop {
       }
    }
   
-   return 1 if $force;
+   if($force){
+      $callback->() if $callback;
+      return 1;
+   } 
 
    $self->log('waiting ' . $self->{'stop_force_time'} . ' seconds for child processes to finish...'); 
  
@@ -417,7 +426,7 @@ sub child_job {
 
    my $exit_status = ::cmd($job->{'cmd'}, $cmd_output);
 
-   $self->log(($job->{'name'} || 'job') . " completed with output:\n$cmd_output");
+   $self->log(($job->{'name'} || 'job') . " completed with output:\n$cmd_output") if $cmd_output !~ /^\s*$/;
 
    $self->log(($job->{'name'} || 'job') . ' complete with exit status ' . $exit_status);
 
