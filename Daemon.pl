@@ -96,7 +96,7 @@ sub init_sig_handlers {
    my $HUP = sub {
       $self->log('SIGHUP received');
 
-      return if($self->{'is_child'});
+      return 0 if($self->{'is_child'});
 
       if($self->{'started'} && !$self->{'stopped'}){
          $self->log('restarting');
@@ -118,7 +118,7 @@ sub init_sig_handlers {
    my $CHLD = sub {
       $self->log('SIGCHLD received');
 
-      return if $self->{'is_child'};
+      return 0 if $self->{'is_child'};
 
       my $child_pid = waitpid(-1, ::WNOHANG);
       my $exit_status = $?;
@@ -154,10 +154,11 @@ sub init_sig_handlers {
             return 0;
          }
 
-         $self->make_fork($job);
-      }else{
-         $self->log('revive_children unset, will not attempt to revive child');
+         $self->make_fork($job); #this function exits
       }
+      
+      $self->log('revive_children unset, will not attempt to revive child');
+      
 
       if($self->{'SIGTERM_received'} && scalar @{$self->{'children'}} == 0){
          $self->log('all processes exitted naturally, exitting...');
