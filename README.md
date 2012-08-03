@@ -43,7 +43,7 @@ A command line script, `Daemon`, is included for convinience which starts, stops
 ````
 ./Daemon start
 ./Daemon stop #send twice to force immediate (unclean) Daemon termination
-./Daemon restart #this is different from a start followed by a stop, sends Daemon SIGHUP
+./Daemon restart #this is different from a stop followed by a start, sends Daemon SIGHUP
 ./Daemon status
 ````
 
