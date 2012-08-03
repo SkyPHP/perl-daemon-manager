@@ -197,6 +197,8 @@ sub start {
    foreach(@{$self->{'jobs'}}){
       my $job = $_;
 
+      next unless $job->{'cmd'};
+
       $self->make_fork($job) foreach 0 .. (($job->{'fork_count'} - 1)|| 0);
    }
 
