@@ -96,7 +96,7 @@ sub init_sig_handlers {
    my $HUP = sub {
       $self->log('SIGHUP received');
 
-      return 0 if($self->{'is_child'});
+      return 0 if $self->{'is_child'};
 
       if($self->{'started'} && !$self->{'stopped'}){
          $self->log('restarting');
@@ -120,7 +120,7 @@ sub init_sig_handlers {
 
       return 0 if $self->{'is_child'};
 
-      my $child_pid = waitpid(-1, ::WNOHANG);
+      my $child_pid = waitpid -1, ::WNOHANG;
       my $exit_status = $?;
 
       return 0 if $self->{'force_stop'};
@@ -283,7 +283,7 @@ sub stop {
 
    $self->log('waiting ' . $self->{'stop_force_time'} . ' seconds for child processes to finish...'); 
  
-   alarm($self->{'stop_force_time'});   
+   alarm $self->{'stop_force_time'};   
 
    $SIG{'ALRM'} = sub {
       $self->{'force_stop'} = 1;
