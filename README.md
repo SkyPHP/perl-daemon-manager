@@ -42,32 +42,32 @@ Bellow is a sample of usage of the Daemon class.  Run `test.pl` to see the Daemo
 ````
 use Daemon;
 
-   $jobs = [
-      {  #`cd work_dir; ./upload_script` will execute simultaneously in five child processes
-         'name' => 'upload_big_files',
-         'fork_count' => 5,
-         'cmd' => 'cd work_dir; ./upload_script'
-      },
-      {  #`cd work_dir; ./delete_script` will execute simultaneously in two processes
-         'name' => 'delete_big_files',
-         'fork_count' => 2,
-         'cmd' => 'cd work_dir; ./delete_script'
-      }       
-   ];
+$jobs = [
+   {  #`cd work_dir; ./upload_script` will execute simultaneously in five child processes
+      'name' => 'upload_big_files',
+      'fork_count' => 5,
+      'cmd' => 'cd work_dir; ./upload_script'
+   },
+   {  #`cd work_dir; ./delete_script` will execute simultaneously in two processes
+      'name' => 'delete_big_files',
+      'fork_count' => 2,
+      'cmd' => 'cd work_dir; ./delete_script'
+   }       
+];
 
-   $params = {
-      'jobs' => $jobs,
-      'kill_attempts' => 3,   #when stopping the daemon, attempt to kill child processes this many times before giving up
-      'revive_children' => 1, #if a child process exits with an error code, it will be restarted if this is set
-      'repeat_children' => 1, #if this is set, the job cmd will be executed repeatedly within the child processes, if unset, the child will exit with the cmd exit status
-      'sleep_interval' => 60, #if repeat_children is set and a job cmd exits with an error code, child will sleep for this long before re-executing the cmd
-                              #for each consecutive error code returned, the amount of time slept will double ie: 60 -> 120 -> 240 ...
-      'stop_force_time' => 10 #when stopping the daemon, will wait this long for child processes to terminate cleanly before forcing unclean termination
-   };
+$params = {
+   'jobs' => $jobs,
+   'kill_attempts' => 3,   #when stopping the daemon, attempt to kill child processes this many times before giving up
+   'revive_children' => 1, #if a child process exits with an error code, it will be restarted if this is set
+   'repeat_children' => 1, #if this is set, the job cmd will be executed repeatedly within the child processes, if unset, the child will exit with the cmd exit status
+   'sleep_interval' => 60, #if repeat_children is set and a job cmd exits with an error code, child will sleep for this long before re-executing the cmd
+                           #for each consecutive error code returned, the amount of time slept will double ie: 60 -> 120 -> 240 ...
+   'stop_force_time' => 10 #when stopping the daemon, will wait this long for child processes to terminate cleanly before forcing unclean termination
+};
 
-   $daemon = Daemon->new($params);
+$daemon = Daemon->new($params);
 
-   $daemon->start();
+$daemon->start();
 
-   sleep 10 while true; #create an endless loop
+sleep 10 while true; #create an endless loop
 ````
