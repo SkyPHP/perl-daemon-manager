@@ -14,6 +14,8 @@ require 'config.pl' if -e 'config.pl';
 
 die 'bad config' unless $params && $pid_file_location && $log_file_location && $error_file_location;
 
+#gets the pid from the pid file
+#returns undef if there is no pid file or the trimmed file contents if it exists
 sub get_pid {
    return undef unless -e 'Daemon.pid';
 
