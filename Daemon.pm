@@ -20,6 +20,8 @@ $| = 1; #flush output
 #      the amount of time waited will double with each consecutive error status
 #
 #sample usage:
+#   use Daemon;
+#
 #   $jobs = [
 #      {  #`cd work_dir; ./upload_script` will execute simultaneously in five child processes
 #         'name' => 'upload_big_files',

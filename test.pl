@@ -4,7 +4,7 @@
 #execute this script and try it out
 #monitor output as you send SIGTERM and SIGHUPs the to parent and children processes
 
-require 'Daemon.pl';
+use Daemon;
 
 #sleep times chosen for easy testing of clean and unclean stop
 $params = {
