@@ -19,7 +19,7 @@ The Daemon constuctor accepts a hash reference with the following configurations
 *  `sleep_interval` - If a child exits with an error status and `revive_children` is set, the script will `sleep` this amount of time before spawning another child.  With each consecutive error child process, the `sleep` time will be doubled.  60 will become 120 will become 240 and so on.
 *  `stop_force_time` - When a stop is requested via SIGTERM, the script will allow this many seconds for child processes to exit cleanly before they are force stopped.  An `alarm` is set, so sending a signal other than SIGALRM will not disrupt this wait time (unlike with `sleep`).
 
-Daemon attributes
+Daemon Attributes
 =================
 
 The Daemon object returned by the constructor `new` will have various useful attributes that can be used by the script.  They include all the configurations above as well as:
@@ -28,6 +28,11 @@ The Daemon object returned by the constructor `new` will have various useful att
 *  `is_child` - Value will be set if the process is in fact a child process, unset if the process is the parent process.
 *  `miss_count` - Scalar holding how many times a child process has exited with an error status consecutively.
 *  `force_stop` - Value will be set if a force stop is in progress, unset otherwise.
+
+Daemon Subroutines
+==================
+
+See `Daemon.pm` for documentation of the Daemon subroutines.
 
 Sample Usage
 ============
