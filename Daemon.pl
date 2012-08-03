@@ -123,9 +123,7 @@ sub init_sig_handlers {
       my $child_pid = waitpid(-1, ::WNOHANG);
       my $exit_status = $?;
 
-      if($self->{'force_stop'}){
-         return 0;
-      }
+      return 0 if $self->{'force_stop'};
 
       if($child_pid == -1){
          $self->log('an error occurred handling SIGCHLD');
