@@ -389,6 +389,11 @@ sub child_job {
       return undef;
    }
 
+   unless($job->{'cmd'}){
+      $self->log(($job->{'name'} || 'job') . ' has no cmd, can not perform work');
+      return 199;
+   }
+
    my $cmd_output = undef;
 
    my $exit_status = ::cmd($job->{'cmd'}, $cmd_output);
