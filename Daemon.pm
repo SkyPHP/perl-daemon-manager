@@ -197,7 +197,10 @@ sub start {
    foreach(@{$self->{'jobs'}}){
       my $job = $_;
 
-      next unless $job->{'cmd'};
+      unless($job->{'cmd'}){
+         $self->log(($job->{'name'} || 'job') . ' does not have cmd set, skipping');
+         next;
+      }
 
       $self->make_fork($job) foreach 0 .. (($job->{'fork_count'} - 1)|| 0);
    }
