@@ -5,7 +5,7 @@ Daemon is a general-purpose Perl daemon class.  Daemon manages several forked pr
 
 Interface
 =========
-*  SIGTERM - Stops the child processes, allowing them to exit after their current iteration of work.  After `stop_force_time` seconds the the child processes will be forced to exit with SIGKILL.  If a second SIGTERM is received child processes will be sent SIGKILL imidiately.  The script will terminate once all child processes exit.   Child processes that receive SIGTERM will exit after the current work iteration, a second SIGTERM will force a child process to exit.  If SIGTERM is sent directly to a child process, the script will revive the child once it exits if `revive_children` is set.
+*  SIGTERM - Stops the child processes, allowing them to exit after their current iteration of work.  After `stop_force_time` seconds the the child processes will be forced to exit with SIGKILL.  If a second SIGTERM is received child processes will be sent SIGKILL immediately.  The script will terminate once all child processes exit.   Child processes that receive SIGTERM will exit after the current work iteration, a second SIGTERM will force a child process to exit.  If SIGTERM is sent directly to a child process, the script will revive the child once it exits if `revive_children` is set.
 *  SIGHUP - Stops the child processes using the same mechanism as SIGTERM, repeat SIGHUPs will be ignored.
 
 Configuration
