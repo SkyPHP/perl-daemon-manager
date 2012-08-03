@@ -154,11 +154,10 @@ sub init_sig_handlers {
             return 0;
          }
 
-         $self->make_fork($job); #this function exits
-      }
-      
-      $self->log('revive_children unset, will not attempt to revive child');
-      
+         $self->make_fork($job);
+      }else{      
+         $self->log('revive_children unset, will not attempt to revive child');
+      }      
 
       if($self->{'SIGTERM_received'} && scalar @{$self->{'children'}} == 0){
          $self->log('all processes exitted naturally, exitting...');
