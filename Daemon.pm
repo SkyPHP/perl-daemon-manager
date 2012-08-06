@@ -334,7 +334,7 @@ sub make_fork {
    if($pid){
       #parent
       $self->log('forked ' . ($job->{'name'} || 'job') . ' to process ' . $pid);
-      push $self->{'children'}, {'pid' => $pid, 'name' => $job->{'name'} || 'job'};
+      push @{$self->{'children'}}, {'pid' => $pid, 'name' => $job->{'name'} || 'job'};
    }else{
       #child
       $self->{'is_child'} = 1;
