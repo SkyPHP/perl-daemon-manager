@@ -174,7 +174,7 @@ sub init_sig_handlers {
 sub log {
    my $self = shift;
    my $output;
-   print $$ . ': ' . $output while $output = shift;
+   print POSIX::strftime("%m/%d/%Y %H:%M:%S", localtime) . ':' . $$ . ': ' . $output while $output = shift;
 }
 
 #starts the daemon processes if they have not been started before
