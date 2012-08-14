@@ -54,7 +54,7 @@ The script expects a file `config.pl` which sets certain variables for the scrip
 *  `$log_file_location` - Where to redirect STDOUT for the Daemon process.
 *  `$error_file_location` - Where to redirect STDERR for the Daemon process.
 
-All of these variables must be set in `config.pl` or the script will exit without doing anything.
+All of these variables must be set in `config.pl` or the script will exit without doing anything.  If a Daemon `config.pl` is changed, it must be `stop`ped and `start`ed.  `restart` will not cause the config to be reread.
 
 Sample Usage
 ============
