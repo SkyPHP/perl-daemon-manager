@@ -40,6 +40,8 @@ sub new {
 
    $self->{'sleep_interval'} = $params->{'sleep_interval'} || 60;
 
+   $self->{'max_sleep_time'} = $params->{'max_sleep_time'} || 60 * 60;
+
    $self->{'stop_force_time'} = $params->{'stop_force_time'} || 10;
 
    $self->{'exit_callback'} = $params->{'exit_callback'} || undef;
@@ -364,6 +366,7 @@ sub child_proc {
       while(!$self->{'SIGTERM_received'}){
          if($exit_status){
             my $sleep_time = $self->{'sleep_interval'} * (2 ** ($self->{'miss_count'} - 1));
+            $sleep_time = $self->{'max_sleep_time'} if $sleep_time > $self->{'max_sleep_time'};
             $self->log(($job->{'name'} || 'job') . ' exited with error status, sleeping ' . $sleep_time . ' seconds...');
             sleep $sleep_time;
          }
