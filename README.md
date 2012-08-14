@@ -17,6 +17,7 @@ The Daemon constuctor accepts a hash reference with the following configurations
 *  `revive_children` - If a child process exits with an error code the script will attempt to spawn another child with the same job if `revive_children` is set.
 *  `repeat_children` - If this is set child processes will run the command `cmd` of their job in an endless loop.  Otherwise, a child will execute `cmd` only once and will exit with the same exit code as the job command.
 *  `sleep_interval` - If a child exits with an error status and `revive_children` is set, the script will `sleep` this amount of time before spawning another child.  With each consecutive error child process, the `sleep` time will be doubled.  60 will become 120 will become 240 and so on.
+*  `max_sleep_time` - If a child is `sleep`ing because a previous child process exited with an error status, the amount of time slept will not exceed this value -- however it may `sleep` less depending on `sleep_interval` and how many consecutive child processes exited with an error status.
 *  `stop_force_time` - When a stop is requested via SIGTERM, the script will allow this many seconds for child processes to exit cleanly before they are force stopped.  An `alarm` is set, so sending a signal other than SIGALRM will not disrupt this wait time (unlike with `sleep`).
 * `exit_callback` - A subroutine reference to be called right before the parent process exits.  Useful for closing filehandles or other cleanup code.
 
@@ -53,7 +54,7 @@ The script expects a file `config.pl` which sets certain variables for the scrip
 *  `$log_file_location` - Where to redirect STDOUT for the Daemon process.
 *  `$error_file_location` - Where to redirect STDERR for the Daemon process.
 
-All of these variables must be set in `config.pl` or the script will exit without doing anything.
+All of these variables must be set in `config.pl` or the script will exit without doing anything.  If a Daemon `config.pl` is changed, it must be `stop`ped and `start`ed.  `restart` will not cause the config to be reread.
 
 Sample Usage
 ============
