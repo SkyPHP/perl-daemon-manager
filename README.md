@@ -1,4 +1,4 @@
-perl-daemonm-manager
+perl-daemom-manager
 ========
 
 readme soon.
