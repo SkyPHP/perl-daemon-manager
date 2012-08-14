@@ -1,4 +1,4 @@
-vfolderd
+perl-daemonm-manager
 ========
 
-vfolder daemon
+readme soon.
